@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Firestore Öğrenci Kaydı</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    body { background: #f7f8fa; }
+    .container { max-width: 700px; margin-top: 40px; background: #fff; padding: 30px; border-radius: 15px; box-shadow: 0 0 12px rgba(0,0,0,0.1); }
+    h1 { color: #007bff; font-weight: 700; text-align: center; margin-bottom: 25px; }
+    .table td, .table th { vertical-align: middle; }
+  </style>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+    import { 
+      getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot, serverTimestamp 
+    } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCJ9QUJ5OeQP6hxNjMBDG2_KaXwqL4maIQ",
+  authDomain: "macenus123244.firebaseapp.com",
+  projectId: "macenus123244",
+  storageBucket: "macenus123244.firebasestorage.app",
+  messagingSenderId: "384510959936",
+  appId: "1:384510959936:web:b63c3539d2024fd2961aa5"
+};
+
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Yeni öğrenci kaydı
+    async function veriyiKaydet() {
+      const isim = document.getElementById("isim").value.trim();
+      const seviye = document.getElementById("seviye").value.trim();
+
+      if (!isim || !seviye) {
+        alert("Lütfen tüm alanları doldur!");
+        return;
+      }
+
+      try {
+        await addDoc(collection(db, "ogrenciler"), {
+          isim,
+          seviye,
+          zaman: serverTimestamp()
+        });
+        document.getElementById("isim").value = "";
+        document.getElementById("seviye").value = "";
+      } catch (e) {
+        console.error("Veri kaydedilirken hata:", e);
+      }
+    }
+
+    // Öğrenciyi sil
+    async function ogrenciSil(id) {
+      if (confirm("Bu öğrenciyi silmek istediğine emin misin?")) {
+        await deleteDoc(doc(db, "ogrenciler", id));
+      }
+    }
+
+    // Öğrenci güncelle
+    async function ogrenciGuncelle(id, mevcutIsim, mevcutSeviye) {
+      const yeniIsim = prompt("Yeni isim gir:", mevcutIsim);
+      const yeniSeviye = prompt("Yeni seviye gir:", mevcutSeviye);
+      if (yeniIsim && yeniSeviye) {
+        await updateDoc(doc(db, "ogrenciler", id), { isim: yeniIsim, seviye: yeniSeviye });
+      }
+    }
+
+   
+    function verileriDinle() {
+      const tabloBody = document.getElementById("liste");
+      onSnapshot(collection(db, "ogrenciler"), (snapshot) => {
+        tabloBody.innerHTML = "";
+        snapshot.forEach((docSnap) => {
+          const veri = docSnap.data();
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${veri.isim}</td>
+            <td>${veri.seviye}</td>
+            <td>
+              <button class="btn btn-sm btn-warning me-2" onclick="ogrenciGuncelle('${docSnap.id}', '${veri.isim}', '${veri.seviye}')">Düzenle</button>
+              <button class="btn btn-sm btn-danger" onclick="ogrenciSil('${docSnap.id}')">Sil</button>
+            </td>
+          `;
+          tabloBody.appendChild(tr);
+        });
+      });
+    }
+
+    window.veriyiKaydet = veriyiKaydet;
+    window.verileriDinle = verileriDinle;
+    window.ogrenciSil = ogrenciSil;
+    window.ogrenciGuncelle = ogrenciGuncelle;
+
+    // Sayfa yüklenince liste başlasın
+    window.onload = verileriDinle;
+  </script>
+</head>
+<body>
+  <div class="container">
+    <h1>Firestore Öğrenci Kaydı</h1>
+
+    <div class="mb-3">
+      <input type="text" id="isim" class="form-control" placeholder="Öğrenci adı">
+    </div>
+    <div class="mb-3">
+      <input type="text" id="seviye" class="form-control" placeholder="Seviye (ör: 5. sınıf)">
+    </div>
+    <button class="btn btn-primary w-100" onclick="veriyiKaydet()">Kaydet</button>
+
+    <hr>
+
+    <table class="table table-striped table-hover">
+      <thead class="table-primary">
+        <tr>
+          <th>İsim</th>
+          <th>Seviye</th>
+          <th>İşlem</th>
+        </tr>
+      </thead>
+      <tbody id="liste"></tbody>
+    </table>
+  </div>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>Giriş Yap</title>
+  <style>
+    body { font-family: Arial; text-align: center; margin-top: 50px; }
+    input, button { margin: 10px; padding: 10px; width: 200px; }
+    
+  </style>
+  <script type="module">
+    // Firebase kütüphanelerini import ediyoruz
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+
+    // Firebase ayarları (Kendi config'inle değiştirebilirsin)
+   const firebaseConfig = {
+  apiKey: "AIzaSyBiu49E6ORlX9t2jeNPxU8sgBt19j-ITro",
+  authDomain: "macenus-e2b13.firebaseapp.com",
+  projectId: "macenus-e2b13",
+  storageBucket: "macenus-e2b13.firebasestorage.app",
+  messagingSenderId: "197852276418",
+  appId: "1:197852276418:web:a259e7f02cb85450d5fd5b",
+  measurementId: "G-14GPVHK4ZQ"
+};
+
+    // Firebase başlat
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    // Giriş yapma fonksiyonu
+    async function girisYap() {
+      const email = document.getElementById("email").value;
+      const sifre = document.getElementById("sifre").value;
+
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, email, sifre);
+        alert("Giriş başarılı! Hoş geldin: " + userCredential.user.email);
+        // Başarılı girişten sonra bir ana sayfaya yönlendirebiliriz
+        window.location.href = "index.html";
+      } catch (error) {
+        alert("Hata: " + error.message);
+      }
+    }
+
+    window.girisYap = girisYap; // Butona bağlamak için
+  </script>
+</head>
+<body>
+  <h1>Giriş Yap</h1>
+  <input type="email" id="email" placeholder="E-posta adresi"><br>
+  <input type="password" id="sifre" placeholder="Şifre"><br>
+  <button onclick="girisYap()">Giriş Yap</button><br>
+  <a href="signup.html">Hesabın yok mu? Üye Ol</a>
+  <a href="signup.html">Şifrenimi Unuttun?</a>
+</body>
+</html>
+
+

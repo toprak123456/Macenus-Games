@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>Üye Ol</title>
+  <style>
+    body { font-family: Arial; text-align: center; margin-top: 50px; }
+    input, button { margin: 10px; padding: 10px; width: 200px; }
+  </style>
+  <script type="module">
+    // Firebase kütüphanelerini import ediyoruz
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+
+    // Firebase ayarları (Kendi config'inle değiştirebilirsin)
+const firebaseConfig = {
+  apiKey: "AIzaSyCJ9QUJ5OeQP6hxNjMBDG2_KaXwqL4maIQ",
+  authDomain: "macenus123244.firebaseapp.com",
+  projectId: "macenus123244",
+  storageBucket: "macenus123244.firebasestorage.app",
+  messagingSenderId: "384510959936",
+  appId: "1:384510959936:web:b63c3539d2024fd2961aa5"
+};
+
+
+    // Firebase başlat
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    // Kayıt fonksiyonu
+    async function kayitOl() {
+      const email = document.getElementById("email").value;
+      const sifre = document.getElementById("sifre").value;
+
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, sifre);
+        alert("Kayıt başarılı! Şimdi giriş yapabilirsiniz.");
+        window.location.href = "login.html"; // Giriş sayfasına yönlendir
+      } catch (error) {
+        alert("Hata: " + error.message);
+      }
+    }
+
+    window.kayitOl = kayitOl; // Butona bağlamak için
+  </script>
+</head>
+<body>
+  <h1>Üye Ol</h1>
+  <input type="email" id="email" placeholder="E-posta adresi"><br>
+  <input type="password" id="sifre" placeholder="Şifre"><br>
+  <button onclick="kayitOl()">Kayıt Ol</button><br>
+  <a href="login.html">Zaten hesabın var mı? Giriş Yap</a>
+</body>
+</html>

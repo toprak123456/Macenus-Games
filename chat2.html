@@ -1,0 +1,2180 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Discord Firebase Sohbet - Full Featured</title>
+
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg-main: #202225;
+      --bg-sidebar: #2f3136;
+      --bg-server: #202225;
+      --bg-chat: #35393f;
+      --bg-chat-input: #40444b;
+      --bg-message-self: #5865f2;
+      --bg-message-other: #2f3136;
+      --text-main: #dcddde;
+      --text-muted: #b9bbbe;
+      --accent: #5865f2;
+      --danger: #ed4245;
+      --success: #3ba55d;
+    }
+
+    /* LIGHT THEME */
+    [data-theme="light"] {
+      --bg-main: #ffffff;
+      --bg-sidebar: #f2f3f5;
+      --bg-server: #e3e5e8;
+      --bg-chat: #ffffff;
+      --bg-chat-input: #ebedef;
+      --bg-message-self: #5865f2;
+      --bg-message-other: #f2f3f5;
+      --text-main: #2e3338;
+      --text-muted: #4e5058;
+      --accent: #5865f2;
+      --danger: #ed4245;
+      --success: #3ba55d;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg-main);
+      color: var(--text-main);
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      height: 100vh;
+      overflow: hidden;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .app-container {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* LOGIN OVERLAY */
+    #loginScreen {
+      position: fixed;
+      inset: 0;
+      background: #202225;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+      color: #fff;
+    }
+
+    #loginScreen h2 {
+      margin-bottom: 12px;
+    }
+
+    #googleLoginBtn {
+      background: #5865f2;
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+    }
+
+    #googleLoginBtn i {
+      margin-right: 6px;
+    }
+
+    #googleLoginBtn:hover {
+      background: #4752c4;
+    }
+
+    /* Sunucu barı */
+    .server-bar {
+      width: 72px;
+      background: var(--bg-server);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 8px;
+      gap: 8px;
+      transition: background 0.3s;
+    }
+
+    .server-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: #36393f;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 700;
+      font-size: 20px;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.15s ease;
+    }
+
+    .server-icon:hover {
+      border-radius: 16px;
+      background: var(--accent);
+    }
+
+    .server-icon.active {
+      border-radius: 16px;
+      background: var(--accent);
+    }
+
+    .server-divider {
+      height: 2px;
+      width: 50%;
+      background: #3a3c43;
+      margin: 4px 0;
+    }
+
+    .server-icon.plus {
+      font-size: 28px;
+      background: #3ba55d;
+    }
+
+    .server-icon.plus:hover {
+      background: #43b581;
+    }
+
+    /* Orta sidebar (kanallar + DM) */
+    .channel-sidebar {
+      width: 260px;
+      background: var(--bg-sidebar);
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #202225;
+      transition: background 0.3s;
+    }
+
+    .channel-header {
+      padding: 10px 12px;
+      border-bottom: 1px solid #202225;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg-sidebar);
+    }
+
+    .channel-header-title {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .channel-header-icon {
+      font-size: 16px;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    .channel-header-icon:hover {
+      color: var(--text-main);
+    }
+
+    .channel-search {
+      padding: 6px 10px;
+      border-bottom: 1px solid #202225;
+    }
+
+    .channel-search input {
+      width: 100%;
+      background: var(--bg-chat-input);
+      border: none;
+      color: var(--text-main);
+      font-size: 13px;
+      padding: 6px 8px;
+      border-radius: 4px;
+    }
+
+    .channel-search input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .channel-search input:focus {
+      outline: 1px solid #3a3c43;
+    }
+
+    .channel-list-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px 0;
+    }
+
+    .channel-section-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin: 6px 10px 4px;
+    }
+
+    .channel-item,
+    .dm-item {
+      display: flex;
+      align-items: center;
+      padding: 5px 10px;
+      cursor: pointer;
+      border-radius: 4px;
+      margin: 0 6px;
+      font-size: 14px;
+      transition: background 0.1s ease;
+    }
+
+    .channel-item:hover,
+    .dm-item:hover {
+      background: #34373c;
+    }
+
+    .channel-item.active,
+    .dm-item.active {
+      background: #393c43;
+    }
+
+    .channel-item span {
+      margin-left: 4px;
+    }
+
+    .dm-avatar {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #7289da;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      margin-right: 8px;
+      flex-shrink: 0;
+      position: relative;
+    }
+
+    /* YENİ: Online Status Badge */
+    .online-badge {
+      position: absolute;
+      bottom: -2px;
+      right: -2px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--success);
+      border: 2px solid var(--bg-sidebar);
+    }
+
+    .offline-badge {
+      background: #747f8d;
+    }
+
+    .dm-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .dm-name-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2px;
+    }
+
+    .dm-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    .dm-time {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .dm-last-message {
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 150px;
+    }
+
+    .channel-footer {
+      padding: 8px 10px;
+      border-top: 1px solid #202225;
+      background: #292b2f;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .channel-footer-avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: #7289da;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .channel-footer-user {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .channel-footer-user-name {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .channel-footer-user-email {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .channel-footer-icons i {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-left: 6px;
+      cursor: pointer;
+    }
+
+    .channel-footer-icons i:hover {
+      color: var(--text-main);
+    }
+
+    /* YENİ: Theme Toggle Button */
+    .theme-toggle {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 16px;
+      cursor: pointer;
+      padding: 4px 8px;
+      transition: color 0.2s;
+    }
+
+    .theme-toggle:hover {
+      color: var(--accent);
+    }
+
+    /* Chat alanı */
+    .chat-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-chat);
+      transition: background 0.3s;
+    }
+
+    .chat-header {
+      background: var(--bg-chat);
+      border-bottom: 1px solid #202225;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .chat-header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+    }
+
+    .chat-header-name {
+      font-weight: 600;
+      font-size: 15px;
+    }
+
+    .chat-header-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* YENİ: Search Messages */
+    .search-messages-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .search-messages-input {
+      background: var(--bg-chat-input);
+      border: none;
+      color: var(--text-main);
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 13px;
+      width: 200px;
+      transition: width 0.3s;
+    }
+
+    .search-messages-input:focus {
+      outline: 1px solid var(--accent);
+      width: 250px;
+    }
+
+    .search-messages-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .search-toggle-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 16px;
+      cursor: pointer;
+      padding: 4px 8px;
+    }
+
+    .search-toggle-btn:hover {
+      color: var(--text-main);
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .chat-empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--text-muted);
+      gap: 8px;
+    }
+
+    .chat-empty-state i {
+      font-size: 48px;
+      opacity: 0.3;
+    }
+
+    .message-row {
+      display: flex;
+      gap: 12px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      position: relative;
+      transition: background 0.2s;
+    }
+
+    .message-row:hover {
+      background: rgba(79, 84, 92, 0.2);
+    }
+
+    .message-row:hover .message-actions {
+      display: flex;
+    }
+
+    .message-row.me {
+      flex-direction: row-reverse;
+    }
+
+    /* YENİ: Message Actions */
+    .message-actions {
+      display: none;
+      position: absolute;
+      top: -12px;
+      right: 20px;
+      background: var(--bg-sidebar);
+      border: 1px solid #202225;
+      border-radius: 8px;
+      padding: 4px;
+      gap: 4px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .message-row.me .message-actions {
+      right: auto;
+      left: 20px;
+    }
+
+    .message-action-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 14px;
+      cursor: pointer;
+      padding: 6px 8px;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .message-action-btn:hover {
+      background: var(--bg-chat-input);
+      color: var(--text-main);
+    }
+
+    .message-action-btn.delete:hover {
+      color: var(--danger);
+    }
+
+    .message-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #7289da;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 600;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .message-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-width: 70%;
+    }
+
+    .message-header {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .message-sender {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .message-time {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .message-text {
+      background: var(--bg-message-other);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      line-height: 1.4;
+      word-wrap: break-word;
+      transition: background 0.3s;
+    }
+
+    .message-row.me .message-text {
+      background: var(--bg-message-self);
+    }
+
+    /* Resim mesajları */
+    .message-image {
+      max-width: 400px;
+      max-height: 300px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .message-image:hover {
+      transform: scale(1.02);
+    }
+
+    .message-image-container {
+      position: relative;
+      display: inline-block;
+    }
+
+    /* YENİ: Reaction Container */
+    .message-reactions {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+
+    .reaction-item {
+      background: var(--bg-chat-input);
+      border: 1px solid transparent;
+      border-radius: 12px;
+      padding: 2px 8px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 13px;
+    }
+
+    .reaction-item:hover {
+      border-color: var(--accent);
+      background: rgba(88, 101, 242, 0.1);
+    }
+
+    .reaction-item.my-reaction {
+      border-color: var(--accent);
+      background: rgba(88, 101, 242, 0.2);
+    }
+
+    .reaction-emoji {
+      font-size: 14px;
+    }
+
+    .reaction-count {
+      font-size: 11px;
+      color: var(--text-main);
+      font-weight: 500;
+    }
+
+    /* Image Modal */
+    .image-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.9);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .image-modal.active {
+      display: flex;
+    }
+
+    .image-modal img {
+      max-width: 90vw;
+      max-height: 90vh;
+      border-radius: 8px;
+    }
+
+    .image-modal-close {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      color: white;
+      font-size: 32px;
+      cursor: pointer;
+      background: rgba(0, 0, 0, 0.5);
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .chat-typing {
+      padding: 4px 16px;
+      font-size: 12px;
+      color: var(--text-muted);
+      font-style: italic;
+      min-height: 20px;
+    }
+
+    .chat-input-area {
+      padding: 16px;
+      background: var(--bg-chat);
+    }
+
+    .chat-input-wrapper {
+      display: flex;
+      align-items: center;
+      background: var(--bg-chat-input);
+      border-radius: 8px;
+      padding: 8px 12px;
+      gap: 8px;
+      transition: background 0.3s;
+    }
+
+    /* File upload button */
+    .file-upload-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px 8px;
+      transition: color 0.2s;
+    }
+
+    .file-upload-btn:hover {
+      color: var(--accent);
+    }
+
+    .file-upload-btn.uploading {
+      color: var(--accent);
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* YENİ: Emoji Picker Button */
+    .emoji-picker-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px 8px;
+      transition: color 0.2s;
+    }
+
+    .emoji-picker-btn:hover {
+      color: var(--accent);
+    }
+
+    /* YENİ: Emoji Picker */
+    .emoji-picker {
+      position: absolute;
+      bottom: 100%;
+      left: 0;
+      background: var(--bg-sidebar);
+      border: 1px solid #202225;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      max-width: 300px;
+      z-index: 100;
+    }
+
+    .emoji-picker.active {
+      display: flex;
+    }
+
+    .emoji-picker-header {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .emoji-grid {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 4px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .emoji-item {
+      background: transparent;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+
+    .emoji-item:hover {
+      background: var(--bg-chat-input);
+    }
+
+    /* Image preview */
+    .image-preview {
+      display: none;
+      padding: 8px;
+      background: var(--bg-sidebar);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      position: relative;
+    }
+
+    .image-preview.active {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .image-preview img {
+      width: 60px;
+      height: 60px;
+      object-fit: cover;
+      border-radius: 4px;
+    }
+
+    .image-preview-info {
+      flex: 1;
+      font-size: 12px;
+    }
+
+    .image-preview-name {
+      color: var(--text-main);
+      font-weight: 500;
+    }
+
+    .image-preview-size {
+      color: var(--text-muted);
+    }
+
+    .image-preview-remove {
+      background: var(--danger);
+      border: none;
+      color: white;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+
+    .chat-input-wrapper input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      font-size: 14px;
+      outline: none;
+    }
+
+    .chat-input-wrapper input::placeholder {
+      color: var(--text-muted);
+    }
+
+    /* YENİ: Character Counter */
+    .char-counter {
+      font-size: 11px;
+      color: var(--text-muted);
+      padding: 0 4px;
+    }
+
+    .char-counter.warning {
+      color: #faa81a;
+    }
+
+    .char-counter.danger {
+      color: var(--danger);
+    }
+
+    .send-btn {
+      background: var(--accent);
+      border: none;
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+
+    .send-btn:hover {
+      background: #4752c4;
+    }
+
+    .send-btn:disabled {
+      background: #3a3c43;
+      cursor: not-allowed;
+    }
+
+    /* YENİ: Reaction Picker */
+    .reaction-picker {
+      position: absolute;
+      bottom: 100%;
+      right: 0;
+      background: var(--bg-sidebar);
+      border: 1px solid #202225;
+      border-radius: 8px;
+      padding: 8px;
+      display: none;
+      gap: 4px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      z-index: 50;
+    }
+
+    .reaction-picker.active {
+      display: flex;
+    }
+
+    .reaction-picker-emoji {
+      background: transparent;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+
+    .reaction-picker-emoji:hover {
+      background: var(--bg-chat-input);
+      transform: scale(1.2);
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #202225;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #2f3136;
+    }
+
+    /* YENİ: Notification Permission Banner */
+    .notification-banner {
+      background: var(--accent);
+      color: white;
+      padding: 12px 16px;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+    }
+
+    .notification-banner.active {
+      display: flex;
+    }
+
+    .notification-banner button {
+      background: white;
+      color: var(--accent);
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .notification-banner .close-btn {
+      background: transparent;
+      color: white;
+      margin-left: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div id="loginScreen">
+    <h2>Discord Klonu</h2>
+    <p style="margin-bottom: 20px; color: #b9bbbe;">Devam etmek için giriş yapın</p>
+    <button id="googleLoginBtn">
+      <i class="fab fa-google"></i>
+      Google ile Giriş Yap
+    </button>
+  </div>
+
+  <div class="app-container" style="display: none;" id="appContainer">
+    <!-- Sol: Sunucu bar -->
+    <div class="server-bar" id="serverBar">
+      <!-- JS ile doldurulacak -->
+    </div>
+
+    <!-- Orta: Kanallar / DM -->
+    <div class="channel-sidebar">
+      <div class="channel-header">
+        <div class="channel-header-title" id="channelHeaderTitle">Genel Sunucu</div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button class="theme-toggle" id="themeToggle" title="Tema Değiştir">
+            <i class="fas fa-moon"></i>
+          </button>
+          <i class="fas fa-chevron-down channel-header-icon"></i>
+        </div>
+      </div>
+
+      <div class="channel-search">
+        <input type="text" placeholder="Ara" id="searchInput" />
+      </div>
+
+      <div class="channel-list-container" id="channelListContainer">
+        <!-- JS ile doldurulacak -->
+      </div>
+
+      <div class="channel-footer">
+        <div class="channel-footer-avatar" id="footerAvatar">U</div>
+        <div class="channel-footer-user">
+          <div class="channel-footer-user-name" id="footerUserName">Kullanıcı</div>
+          <div class="channel-footer-user-email" id="footerUserEmail">user@email.com</div>
+        </div>
+        <div class="channel-footer-icons">
+          <i class="fas fa-microphone"></i>
+          <i class="fas fa-headphones"></i>
+          <i class="fas fa-cog" id="logoutBtn" title="Çıkış Yap" style="color: var(--danger);"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sağ: Chat -->
+    <div class="chat-main">
+      <!-- YENİ: Notification Banner -->
+      <div class="notification-banner" id="notificationBanner">
+        <span>🔔 Bildirim izni verin ve yeni mesajları kaçırmayın!</span>
+        <div>
+          <button id="enableNotifications">İzin Ver</button>
+          <button class="close-btn" id="closeBanner">✕</button>
+        </div>
+      </div>
+
+      <div class="chat-header">
+        <div class="chat-header-left">
+          <div>
+            <div class="chat-header-name" id="chatHeaderName">Sohbet seçilmedi</div>
+            <div class="chat-header-sub" id="chatHeaderSub"></div>
+          </div>
+        </div>
+        
+        <!-- YENİ: Message Search -->
+        <div class="search-messages-container">
+          <input 
+            type="text" 
+            class="search-messages-input" 
+            id="searchMessagesInput" 
+            placeholder="Mesajlarda ara..."
+            style="display: none;"
+          />
+          <button class="search-toggle-btn" id="searchToggleBtn">
+            <i class="fas fa-search"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="chat-messages" id="chatMessages">
+        <!-- JS ile doldurulacak -->
+      </div>
+
+      <div class="chat-typing" id="chatTyping"></div>
+
+      <div class="chat-input-area">
+        <!-- Image Preview -->
+        <div class="image-preview" id="imagePreview">
+          <img id="previewImage" src="" alt="Preview">
+          <div class="image-preview-info">
+            <div class="image-preview-name" id="previewName"></div>
+            <div class="image-preview-size" id="previewSize"></div>
+          </div>
+          <button class="image-preview-remove" id="removePreview">×</button>
+        </div>
+
+        <div class="chat-input-wrapper" style="position: relative;">
+          <!-- YENİ: Emoji Picker -->
+          <div class="emoji-picker" id="emojiPicker">
+            <div class="emoji-picker-header">Emoji Seç</div>
+            <div class="emoji-grid" id="emojiGrid">
+              <!-- JS ile doldurulacak -->
+            </div>
+          </div>
+
+          <!-- File Upload Button -->
+          <input type="file" id="fileInput" accept="image/*" style="display: none;">
+          <button class="file-upload-btn" id="fileUploadBtn" title="Resim Gönder">
+            <i class="fas fa-paperclip"></i>
+          </button>
+
+          <!-- YENİ: Emoji Picker Button -->
+          <button class="emoji-picker-btn" id="emojiPickerBtn" title="Emoji Ekle">
+            😊
+          </button>
+
+          <input type="text" placeholder="Mesaj yaz..." id="messageInput" maxlength="2000" />
+          
+          <!-- YENİ: Character Counter -->
+          <span class="char-counter" id="charCounter">2000</span>
+
+          <button class="send-btn" id="sendBtn">Gönder</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Image Modal -->
+  <div class="image-modal" id="imageModal">
+    <div class="image-modal-close" id="modalClose">×</div>
+    <img id="modalImage" src="" alt="Full size">
+  </div>
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+    import {
+      getAuth,
+      GoogleAuthProvider,
+      signInWithPopup,
+      onAuthStateChanged,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      query,
+      orderBy,
+      onSnapshot,
+      doc,
+      setDoc,
+      deleteDoc,
+      updateDoc,
+      serverTimestamp,
+      increment
+    } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+
+    // ⚠️ KENDİ FİREBASE CONFIG'İNİZİ BURAYA YAPIN
+    const firebaseConfig = {
+      apiKey: "AIzaSyDI0lC7bhuvXu6MHJYTmX9VETyU5fglZS4",
+      authDomain: "deneme-58622.firebaseapp.com",
+      projectId: "deneme-58622",
+      storageBucket: "deneme-58622.firebasestorage.app",
+      messagingSenderId: "842705198192",
+      appId: "1:842705198192:web:b4e9973bda2e391a93a8b5"
+    };
+
+    // ⚠️ IMGBB API KEY'İNİZİ BURAYA YAPIN
+    const IMGBB_API_KEY = "d15e1224a52f0f4d37cfc9d84a05f22b";
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const provider = new GoogleAuthProvider();
+
+    // DOM Elements
+    const loginScreen = document.getElementById("loginScreen");
+    const appContainer = document.getElementById("appContainer");
+    const googleLoginBtn = document.getElementById("googleLoginBtn");
+    const logoutBtn = document.getElementById("logoutBtn");
+    const serverBar = document.getElementById("serverBar");
+    const channelListContainer = document.getElementById("channelListContainer");
+    const searchInput = document.getElementById("searchInput");
+    const chatMessages = document.getElementById("chatMessages");
+    const chatHeaderName = document.getElementById("chatHeaderName");
+    const chatHeaderSub = document.getElementById("chatHeaderSub");
+    const chatTyping = document.getElementById("chatTyping");
+    const messageInput = document.getElementById("messageInput");
+    const sendBtn = document.getElementById("sendBtn");
+    const footerAvatar = document.getElementById("footerAvatar");
+    const footerUserName = document.getElementById("footerUserName");
+    const footerUserEmail = document.getElementById("footerUserEmail");
+    const channelHeaderTitle = document.getElementById("channelHeaderTitle");
+
+    // Image upload elements
+    const fileInput = document.getElementById("fileInput");
+    const fileUploadBtn = document.getElementById("fileUploadBtn");
+    const imagePreview = document.getElementById("imagePreview");
+    const previewImage = document.getElementById("previewImage");
+    const previewName = document.getElementById("previewName");
+    const previewSize = document.getElementById("previewSize");
+    const removePreview = document.getElementById("removePreview");
+    const imageModal = document.getElementById("imageModal");
+    const modalImage = document.getElementById("modalImage");
+    const modalClose = document.getElementById("modalClose");
+
+    // YENİ: New elements
+    const themeToggle = document.getElementById("themeToggle");
+    const emojiPickerBtn = document.getElementById("emojiPickerBtn");
+    const emojiPicker = document.getElementById("emojiPicker");
+    const emojiGrid = document.getElementById("emojiGrid");
+    const charCounter = document.getElementById("charCounter");
+    const searchToggleBtn = document.getElementById("searchToggleBtn");
+    const searchMessagesInput = document.getElementById("searchMessagesInput");
+    const notificationBanner = document.getElementById("notificationBanner");
+    const enableNotifications = document.getElementById("enableNotifications");
+    const closeBanner = document.getElementById("closeBanner");
+
+    let currentUser = null;
+    let selectedFile = null;
+    let currentTheme = localStorage.getItem('theme') || 'dark';
+    let allMessages = [];
+    let notificationSound = null;
+
+    const servers = [
+      {
+        id: "general",
+        name: "Genel Sunucu",
+        channels: [
+          { id: "genel", name: "genel" },
+          { id: "random", name: "random" },
+          { id: "yardim", name: "yardım" }
+        ]
+      }
+    ];
+
+    let dmUsers = [];
+    let activeContext = null;
+    let activeDMRoom = null;
+    let unsubscribeMessages = null;
+    let typingTimeout = null;
+
+    // YENİ: Emoji list
+    const emojis = [
+      '😊', '😂', '🤣', '😍', '🥰', '😘', '😎', '🤔', 
+      '😮', '😢', '😭', '😡', '🤬', '😴', '🥱', '😇',
+      '🤗', '🤭', '🤫', '🤐', '😬', '🙄', '😏', '😒',
+      '👍', '👎', '👌', '✌️', '🤞', '🤝', '👏', '🙌',
+      '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍',
+      '🔥', '⭐', '✨', '💯', '🎉', '🎊', '🎈', '🎁',
+      '🍕', '🍔', '🍟', '🌭', '🍿', '🎂', '🍰', '☕',
+      '⚽', '🏀', '🎮', '🎵', '🎸', '📱', '💻', '⌚'
+    ];
+
+    // YENİ: Reaction emojis
+    const reactionEmojis = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+
+    // YENİ: Initialize emoji grid
+    function initEmojiPicker() {
+      emojiGrid.innerHTML = '';
+      emojis.forEach(emoji => {
+        const btn = document.createElement('button');
+        btn.className = 'emoji-item';
+        btn.textContent = emoji;
+        btn.addEventListener('click', () => {
+          messageInput.value += emoji;
+          messageInput.focus();
+          emojiPicker.classList.remove('active');
+          updateCharCounter();
+        });
+        emojiGrid.appendChild(btn);
+      });
+    }
+
+    // YENİ: Toggle emoji picker
+    emojiPickerBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      emojiPicker.classList.toggle('active');
+    });
+
+    // Close emoji picker when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!emojiPicker.contains(e.target) && e.target !== emojiPickerBtn) {
+        emojiPicker.classList.remove('active');
+      }
+    });
+
+    // YENİ: Character counter
+    function updateCharCounter() {
+      const remaining = 2000 - messageInput.value.length;
+      charCounter.textContent = remaining;
+      
+      if (remaining < 100) {
+        charCounter.classList.add('warning');
+        charCounter.classList.remove('danger');
+      }
+      if (remaining < 50) {
+        charCounter.classList.add('danger');
+        charCounter.classList.remove('warning');
+      }
+      if (remaining >= 100) {
+        charCounter.classList.remove('warning', 'danger');
+      }
+    }
+
+    messageInput.addEventListener('input', updateCharCounter);
+
+    // YENİ: Theme toggle
+    function setTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      currentTheme = theme;
+      localStorage.setItem('theme', theme);
+      
+      const icon = themeToggle.querySelector('i');
+      if (theme === 'light') {
+        icon.className = 'fas fa-sun';
+      } else {
+        icon.className = 'fas fa-moon';
+      }
+    }
+
+    themeToggle.addEventListener('click', () => {
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      setTheme(newTheme);
+    });
+
+    // Initialize theme
+    setTheme(currentTheme);
+
+    // YENİ: Notification functions
+    async function requestNotificationPermission() {
+      if ('Notification' in window) {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          notificationBanner.classList.remove('active');
+          localStorage.setItem('notificationPermission', 'granted');
+        }
+      }
+    }
+
+    function showNotification(title, body) {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(title, {
+          body: body,
+          icon: '/icon.png',
+          badge: '/badge.png'
+        });
+        
+        // Play sound
+        if (notificationSound) {
+          notificationSound.play().catch(e => console.log('Sound play failed:', e));
+        }
+      }
+    }
+
+    enableNotifications.addEventListener('click', requestNotificationPermission);
+    closeBanner.addEventListener('click', () => {
+      notificationBanner.classList.remove('active');
+      localStorage.setItem('notificationBannerClosed', 'true');
+    });
+
+    // Check notification permission on load
+    if ('Notification' in window) {
+      if (Notification.permission === 'default' && 
+          localStorage.getItem('notificationBannerClosed') !== 'true') {
+        setTimeout(() => {
+          notificationBanner.classList.add('active');
+        }, 3000);
+      }
+    }
+
+    // YENİ: Create notification sound
+    // You can use a data URL for a simple beep sound
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    function createNotificationSound() {
+      const beep = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      beep.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      beep.frequency.value = 800;
+      gainNode.gain.value = 0.1;
+      
+      beep.start(audioContext.currentTime);
+      beep.stop(audioContext.currentTime + 0.1);
+    }
+
+    // YENİ: Message search
+    searchToggleBtn.addEventListener('click', () => {
+      searchMessagesInput.style.display = 
+        searchMessagesInput.style.display === 'none' ? 'block' : 'none';
+      if (searchMessagesInput.style.display === 'block') {
+        searchMessagesInput.focus();
+      } else {
+        searchMessagesInput.value = '';
+        renderMessages(allMessages);
+      }
+    });
+
+    searchMessagesInput.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase().trim();
+      if (query === '') {
+        renderMessages(allMessages);
+      } else {
+        const filtered = allMessages.filter(msg => 
+          msg.text?.toLowerCase().includes(query)
+        );
+        renderMessages(filtered);
+      }
+    });
+
+    // Login
+    googleLoginBtn.addEventListener('click', async () => {
+      try {
+        await signInWithPopup(auth, provider);
+      } catch (error) {
+        console.error('Giriş hatası:', error);
+        alert('Giriş yapılamadı!');
+      }
+    });
+
+    // Logout
+    logoutBtn.addEventListener('click', async () => {
+      if (confirm('Çıkış yapmak istediğinize emin misiniz?')) {
+        // Set user offline
+        if (currentUser) {
+          await setDoc(doc(db, "users", currentUser.id), {
+            online: false,
+            lastSeen: serverTimestamp()
+          }, { merge: true });
+        }
+        await signOut(auth);
+      }
+    });
+
+    // Auth State
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        currentUser = {
+          id: user.uid,
+          name: user.displayName || "Kullanıcı",
+          email: user.email,
+          avatar: user.photoURL
+        };
+
+        await setDoc(doc(db, "users", user.uid), {
+          uid: user.uid,
+          name: currentUser.name,
+          email: currentUser.email,
+          avatar: currentUser.avatar,
+          online: true,
+          lastSeen: serverTimestamp()
+        }, { merge: true });
+
+        loginScreen.style.display = "none";
+        appContainer.style.display = "flex";
+
+        footerAvatar.textContent = currentUser.name[0].toUpperCase();
+        footerUserName.textContent = currentUser.name;
+        footerUserEmail.textContent = currentUser.email;
+
+        renderServers();
+        renderSidebar();
+        listenDMUsers();
+        initEmojiPicker();
+      } else {
+        currentUser = null;
+        loginScreen.style.display = "flex";
+        appContainer.style.display = "none";
+      }
+    });
+
+    function renderServers() {
+      serverBar.innerHTML = "";
+
+      servers.forEach((server, index) => {
+        const icon = document.createElement("div");
+        icon.className = "server-icon";
+        icon.textContent = server.name[0].toUpperCase();
+        icon.dataset.serverId = server.id;
+
+        if (index === 0) {
+          icon.classList.add("active");
+        }
+
+        icon.addEventListener("click", () => {
+          document.querySelectorAll(".server-icon").forEach((i) => i.classList.remove("active"));
+          icon.classList.add("active");
+          renderSidebar();
+        });
+
+        serverBar.appendChild(icon);
+      });
+
+      const divider = document.createElement("div");
+      divider.className = "server-divider";
+      serverBar.appendChild(divider);
+
+      const plusIcon = document.createElement("div");
+      plusIcon.className = "server-icon plus";
+      plusIcon.innerHTML = "+";
+      plusIcon.addEventListener("click", () => {
+        alert("Yeni sunucu ekleme özelliği yakında!");
+      });
+      serverBar.appendChild(plusIcon);
+    }
+
+    function listenDMUsers() {
+      const ref = collection(db, "users");
+      onSnapshot(ref, (snapshot) => {
+        dmUsers = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (data.uid !== currentUser.id) {
+            dmUsers.push(data);
+          }
+        });
+        renderSidebar();
+      });
+    }
+
+    searchInput.addEventListener("input", () => {
+      renderSidebar();
+    });
+
+    function getDMRoomId(uid1, uid2) {
+      return [uid1, uid2].sort().join("_");
+    }
+
+    function renderSidebar() {
+      channelListContainer.innerHTML = "";
+
+      const activeServerIcon = document.querySelector(".server-icon.active");
+      if (!activeServerIcon) return;
+
+      const serverId = activeServerIcon.dataset.serverId;
+      const server = servers.find((s) => s.id === serverId);
+      if (!server) return;
+
+      channelHeaderTitle.textContent = server.name;
+
+      const channelTitle = document.createElement("div");
+      channelTitle.className = "channel-section-title";
+      channelTitle.textContent = "Metin Kanalları";
+      channelListContainer.appendChild(channelTitle);
+
+      server.channels.forEach((ch) => {
+        const item = document.createElement("div");
+        item.className = "channel-item";
+        item.dataset.serverId = server?.id;
+        item.dataset.channelId = ch.id;
+
+        item.innerHTML = `<span>#</span><span>${ch.name}</span>`;
+
+        if (
+          activeContext &&
+          activeContext.type === "channel" &&
+          activeContext.serverId === server?.id &&
+          activeContext.channelId === ch.id
+        ) {
+          item.classList.add("active");
+        }
+
+        item.addEventListener("click", () => {
+          if (!server) return;
+          activeContext = {
+            type: "channel",
+            serverId: server.id,
+            channelId: ch.id,
+            channelName: ch.name
+          };
+          activeDMRoom = null;
+          openChannel(server.id, ch.id, ch.name);
+          renderSidebar();
+        });
+
+        channelListContainer.appendChild(item);
+      });
+
+      const dmTitle = document.createElement("div");
+      dmTitle.className = "channel-section-title";
+      dmTitle.textContent = "Doğrudan Mesajlar";
+      channelListContainer.appendChild(dmTitle);
+
+      const term = searchInput.value.toLowerCase();
+
+      dmUsers
+        .filter((u) => u.name?.toLowerCase().includes(term))
+        .forEach((u) => {
+          const item = document.createElement("div");
+          item.className = "dm-item";
+          item.dataset.userId = u.uid;
+
+          if (activeContext && activeContext.type === "dm" && activeContext.userId === u.uid) {
+            item.classList.add("active");
+          }
+
+          const avatar = document.createElement("div");
+          avatar.className = "dm-avatar";
+          avatar.textContent = (u.name?.[0] || "?").toUpperCase();
+          
+          // YENİ: Online badge
+          const badge = document.createElement("div");
+          badge.className = u.online ? "online-badge" : "online-badge offline-badge";
+          avatar.appendChild(badge);
+
+          const info = document.createElement("div");
+          info.className = "dm-info";
+
+          const nameRow = document.createElement("div");
+          nameRow.className = "dm-name-row";
+
+          const nameSpan = document.createElement("span");
+          nameSpan.className = "dm-name";
+          nameSpan.textContent = u.name || "Kullanıcı";
+
+          const timeSpan = document.createElement("span");
+          timeSpan.className = "dm-time";
+          timeSpan.textContent = "";
+
+          nameRow.appendChild(nameSpan);
+          nameRow.appendChild(timeSpan);
+
+          const lastMsgSpan = document.createElement("div");
+          lastMsgSpan.className = "dm-last-message";
+          lastMsgSpan.textContent = "";
+
+          info.appendChild(nameRow);
+          info.appendChild(lastMsgSpan);
+
+          item.appendChild(avatar);
+          item.appendChild(info);
+
+          item.addEventListener("click", () => {
+            activeContext = { type: "dm", userId: u.uid, userName: u.name };
+            openDM(u);
+            renderSidebar();
+          });
+
+          channelListContainer.appendChild(item);
+        });
+    }
+
+    function renderEmptyChat() {
+      chatMessages.innerHTML = "";
+      const empty = document.createElement("div");
+      empty.className = "chat-empty-state";
+      empty.innerHTML = `
+        <i class="far fa-comments"></i>
+        <div>Soldan bir kanal veya kullanıcı seçerek sohbete başlayın.</div>
+      `;
+      chatMessages.appendChild(empty);
+      chatHeaderName.textContent = "Sohbet seçilmedi";
+      chatHeaderSub.textContent = "";
+      chatTyping.textContent = "";
+    }
+
+    function renderMessageBubble(msg) {
+      const row = document.createElement("div");
+      row.className = "message-row";
+      row.dataset.messageId = msg.id;
+      
+      if (currentUser && msg.senderId === currentUser.id) {
+        row.classList.add("me");
+      }
+
+      const avatar = document.createElement("div");
+      avatar.className = "message-avatar";
+      const firstLetter = msg.senderName?.[0] || "?";
+      avatar.textContent = firstLetter.toUpperCase();
+
+      const content = document.createElement("div");
+      content.className = "message-content";
+
+      const header = document.createElement("div");
+      header.className = "message-header";
+
+      const sender = document.createElement("span");
+      sender.className = "message-sender";
+      sender.textContent = msg.senderName || "Bilinmeyen";
+
+      const timeSpan = document.createElement("span");
+      timeSpan.className = "message-time";
+      if (msg.timestamp?.toDate) {
+        timeSpan.textContent = msg.timestamp.toDate().toLocaleTimeString("tr-TR", {
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+      } else {
+        timeSpan.textContent = "";
+      }
+
+      header.appendChild(sender);
+      header.appendChild(timeSpan);
+      content.appendChild(header);
+
+      // Image
+      if (msg.imageUrl) {
+        const imgContainer = document.createElement("div");
+        imgContainer.className = "message-image-container";
+
+        const img = document.createElement("img");
+        img.className = "message-image";
+        img.src = msg.imageUrl;
+        img.alt = "Gönderilen resim";
+        
+        img.addEventListener("click", () => {
+          modalImage.src = msg.imageUrl;
+          imageModal.classList.add("active");
+        });
+
+        imgContainer.appendChild(img);
+        content.appendChild(imgContainer);
+      }
+
+      // Text
+      if (msg.text && msg.text.trim()) {
+        const textDiv = document.createElement("div");
+        textDiv.className = "message-text";
+        textDiv.textContent = msg.text;
+        content.appendChild(textDiv);
+      }
+
+      // YENİ: Reactions
+      if (msg.reactions && Object.keys(msg.reactions).length > 0) {
+        const reactionsDiv = document.createElement("div");
+        reactionsDiv.className = "message-reactions";
+
+        Object.entries(msg.reactions).forEach(([emoji, users]) => {
+          const reactionItem = document.createElement("div");
+          reactionItem.className = "reaction-item";
+          
+          if (users.includes(currentUser.id)) {
+            reactionItem.classList.add("my-reaction");
+          }
+
+          reactionItem.innerHTML = `
+            <span class="reaction-emoji">${emoji}</span>
+            <span class="reaction-count">${users.length}</span>
+          `;
+
+          reactionItem.addEventListener("click", () => {
+            toggleReaction(msg.id, emoji);
+          });
+
+          reactionsDiv.appendChild(reactionItem);
+        });
+
+        content.appendChild(reactionsDiv);
+      }
+
+      // YENİ: Message Actions (hover menu)
+      const actions = document.createElement("div");
+      actions.className = "message-actions";
+
+      // Reaction button
+      const reactionBtn = document.createElement("button");
+      reactionBtn.className = "message-action-btn";
+      reactionBtn.innerHTML = '<i class="far fa-smile"></i>';
+      reactionBtn.title = "Tepki ekle";
+      reactionBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        showReactionPicker(msg.id, reactionBtn);
+      });
+      actions.appendChild(reactionBtn);
+
+      // Delete button (only for own messages)
+      if (currentUser && msg.senderId === currentUser.id) {
+        const deleteBtn = document.createElement("button");
+        deleteBtn.className = "message-action-btn delete";
+        deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+        deleteBtn.title = "Sil";
+        deleteBtn.addEventListener("click", () => {
+          deleteMessage(msg.id);
+        });
+        actions.appendChild(deleteBtn);
+      }
+
+      row.appendChild(actions);
+
+      if (currentUser && msg.senderId === currentUser.id) {
+        row.appendChild(content);
+        row.appendChild(avatar);
+      } else {
+        row.appendChild(avatar);
+        row.appendChild(content);
+      }
+
+      return row;
+    }
+
+    // YENİ: Show reaction picker
+    function showReactionPicker(messageId, button) {
+      // Remove any existing reaction picker
+      const existing = document.querySelector('.reaction-picker');
+      if (existing) existing.remove();
+
+      const picker = document.createElement('div');
+      picker.className = 'reaction-picker active';
+
+      reactionEmojis.forEach(emoji => {
+        const btn = document.createElement('button');
+        btn.className = 'reaction-picker-emoji';
+        btn.textContent = emoji;
+        btn.addEventListener('click', () => {
+          toggleReaction(messageId, emoji);
+          picker.remove();
+        });
+        picker.appendChild(btn);
+      });
+
+      button.parentElement.appendChild(picker);
+
+      // Close on click outside
+      setTimeout(() => {
+        document.addEventListener('click', function closeReactionPicker(e) {
+          if (!picker.contains(e.target)) {
+            picker.remove();
+            document.removeEventListener('click', closeReactionPicker);
+          }
+        });
+      }, 100);
+    }
+
+    // YENİ: Toggle reaction
+    async function toggleReaction(messageId, emoji) {
+      if (!activeContext || !currentUser) return;
+
+      let docRef;
+      if (activeContext.type === "channel") {
+        const { serverId, channelId } = activeContext;
+        docRef = doc(db, `servers/${serverId}/channels/${channelId}/messages/${messageId}`);
+      } else if (activeContext.type === "dm") {
+        docRef = doc(db, `dm_rooms/${activeDMRoom}/messages/${messageId}`);
+      }
+
+      if (!docRef) return;
+
+      // Get current message to check reactions
+      const msg = allMessages.find(m => m.id === messageId);
+      if (!msg) return;
+
+      const reactions = msg.reactions || {};
+      const users = reactions[emoji] || [];
+
+      if (users.includes(currentUser.id)) {
+        // Remove reaction
+        const newUsers = users.filter(id => id !== currentUser.id);
+        if (newUsers.length === 0) {
+          delete reactions[emoji];
+        } else {
+          reactions[emoji] = newUsers;
+        }
+      } else {
+        // Add reaction
+        reactions[emoji] = [...users, currentUser.id];
+      }
+
+      await updateDoc(docRef, { reactions });
+    }
+
+    // YENİ: Delete message
+    async function deleteMessage(messageId) {
+      if (!confirm('Bu mesajı silmek istediğinizden emin misiniz?')) return;
+      if (!activeContext) return;
+
+      try {
+        let docRef;
+        if (activeContext.type === "channel") {
+          const { serverId, channelId } = activeContext;
+          docRef = doc(db, `servers/${serverId}/channels/${channelId}/messages/${messageId}`);
+        } else if (activeContext.type === "dm") {
+          docRef = doc(db, `dm_rooms/${activeDMRoom}/messages/${messageId}`);
+        }
+
+        if (docRef) {
+          await deleteDoc(docRef);
+        }
+      } catch (error) {
+        console.error('Error deleting message:', error);
+        alert('Mesaj silinemedi!');
+      }
+    }
+
+    function renderMessages(messages) {
+      chatMessages.innerHTML = "";
+
+      if (messages.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "chat-empty-state";
+        empty.innerHTML = `
+          <i class="far fa-comments"></i>
+          <div>Henüz mesaj yok.</div>
+          <div>Mesaj yazarak başlayabilirsiniz.</div>
+        `;
+        chatMessages.appendChild(empty);
+      } else {
+        messages.forEach((msg) => {
+          chatMessages.appendChild(renderMessageBubble(msg));
+        });
+      }
+
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function openChannel(serverId, channelId, channelName) {
+      const server = servers.find((s) => s.id === serverId);
+      chatHeaderName.textContent = `# ${channelName}`;
+      chatHeaderSub.textContent = server ? `— ${server.name} kanalı` : "";
+
+      listenChannelMessages(serverId, channelId);
+    }
+
+    function listenChannelMessages(serverId, channelId) {
+      if (unsubscribeMessages) unsubscribeMessages();
+
+      const ref = collection(db, `servers/${serverId}/channels/${channelId}/messages`);
+      const q = query(ref, orderBy("timestamp"));
+
+      let isFirstLoad = true;
+
+      unsubscribeMessages = onSnapshot(q, (snapshot) => {
+        const previousCount = allMessages.length;
+        allMessages = [];
+
+        snapshot.forEach((docSnap) => {
+          const msg = { id: docSnap.id, ...docSnap.data() };
+          allMessages.push(msg);
+        });
+
+        renderMessages(allMessages);
+
+        // YENİ: Show notification for new messages
+        if (!isFirstLoad && allMessages.length > previousCount) {
+          const lastMsg = allMessages[allMessages.length - 1];
+          if (lastMsg.senderId !== currentUser.id) {
+            showNotification(
+              `# ${channelName}`,
+              `${lastMsg.senderName}: ${lastMsg.text || '📷 Resim gönderdi'}`
+            );
+            createNotificationSound();
+          }
+        }
+
+        isFirstLoad = false;
+      });
+    }
+
+    async function openDM(user) {
+      if (!currentUser) return;
+
+      const otherId = user.uid;
+      const myId = currentUser.id;
+
+      const roomId = getDMRoomId(myId, otherId);
+      activeDMRoom = roomId;
+
+      chatHeaderName.textContent = user.name || "Kullanıcı";
+      chatHeaderSub.textContent = user.online ? "🟢 çevrimiçi" : "⚫ çevrimdışı";
+
+      await setDoc(doc(db, "dm_rooms", roomId), {
+        users: [myId, otherId]
+      }, { merge: true });
+
+      listenDM(roomId, user.name);
+    }
+
+    function listenDM(roomId, userName) {
+      if (unsubscribeMessages) unsubscribeMessages();
+
+      const ref = collection(db, `dm_rooms/${roomId}/messages`);
+      const q = query(ref, orderBy("timestamp"));
+
+      let isFirstLoad = true;
+
+      unsubscribeMessages = onSnapshot(q, (snapshot) => {
+        const previousCount = allMessages.length;
+        allMessages = [];
+
+        snapshot.forEach((docSnap) => {
+          const msg = { id: docSnap.id, ...docSnap.data() };
+          allMessages.push(msg);
+        });
+
+        renderMessages(allMessages);
+
+        // YENİ: Show notification for new DM messages
+        if (!isFirstLoad && allMessages.length > previousCount) {
+          const lastMsg = allMessages[allMessages.length - 1];
+          if (lastMsg.senderId !== currentUser.id) {
+            showNotification(
+              userName || 'Yeni Mesaj',
+              lastMsg.text || '📷 Resim gönderdi'
+            );
+            createNotificationSound();
+          }
+        }
+
+        isFirstLoad = false;
+      });
+    }
+
+    // File upload
+    fileUploadBtn.addEventListener("click", () => {
+      fileInput.click();
+    });
+
+    fileInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      if (!file.type.startsWith('image/')) {
+        alert('Lütfen sadece resim dosyası seçin!');
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Dosya boyutu çok büyük! Maksimum 5MB olmalı.');
+        return;
+      }
+
+      selectedFile = file;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        previewImage.src = e.target.result;
+        previewName.textContent = file.name;
+        previewSize.textContent = formatFileSize(file.size);
+        imagePreview.classList.add('active');
+      };
+      reader.readAsDataURL(file);
+    });
+
+    removePreview.addEventListener("click", () => {
+      selectedFile = null;
+      fileInput.value = '';
+      imagePreview.classList.remove('active');
+    });
+
+    function formatFileSize(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    }
+
+    async function uploadToImgBB(file) {
+      const formData = new FormData();
+      formData.append('image', file);
+
+      try {
+        fileUploadBtn.classList.add('uploading');
+        
+        const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+        
+        fileUploadBtn.classList.remove('uploading');
+
+        if (data.success) {
+          return data.data.url;
+        } else {
+          throw new Error('Upload failed');
+        }
+      } catch (error) {
+        fileUploadBtn.classList.remove('uploading');
+        console.error('ImgBB upload error:', error);
+        alert('Resim yüklenemedi! Lütfen tekrar deneyin.');
+        return null;
+      }
+    }
+
+    async function sendChannelMessage() {
+      if (!currentUser || !activeContext || activeContext.type !== "channel") return;
+
+      const text = messageInput.value.trim();
+      
+      if (!text && !selectedFile) return;
+
+      const { serverId, channelId } = activeContext;
+      const ref = collection(db, `servers/${serverId}/channels/${channelId}/messages`);
+
+      let imageUrl = null;
+
+      if (selectedFile) {
+        imageUrl = await uploadToImgBB(selectedFile);
+        if (!imageUrl) return;
+      }
+
+      await addDoc(ref, {
+        text: text || '',
+        imageUrl: imageUrl,
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        timestamp: serverTimestamp(),
+        reactions: {}
+      });
+
+      messageInput.value = "";
+      selectedFile = null;
+      fileInput.value = '';
+      imagePreview.classList.remove('active');
+      chatTyping.textContent = "";
+      updateCharCounter();
+    }
+
+    async function sendDMMessage() {
+      if (!currentUser || !activeDMRoom || !activeContext || activeContext.type !== "dm") return;
+
+      const text = messageInput.value.trim();
+      
+      if (!text && !selectedFile) return;
+
+      const ref = collection(db, `dm_rooms/${activeDMRoom}/messages`);
+
+      let imageUrl = null;
+
+      if (selectedFile) {
+        imageUrl = await uploadToImgBB(selectedFile);
+        if (!imageUrl) return;
+      }
+
+      await addDoc(ref, {
+        text: text || '',
+        imageUrl: imageUrl,
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        timestamp: serverTimestamp(),
+        reactions: {}
+      });
+
+      messageInput.value = "";
+      selectedFile = null;
+      fileInput.value = '';
+      imagePreview.classList.remove('active');
+      chatTyping.textContent = "";
+      updateCharCounter();
+    }
+
+    function handleSend() {
+      if (!activeContext) return;
+
+      if (activeContext.type === "channel") {
+        sendChannelMessage();
+      } else if (activeContext.type === "dm") {
+        sendDMMessage();
+      }
+    }
+
+    sendBtn.addEventListener("click", handleSend);
+
+    messageInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        handleSend();
+      } else {
+        showTyping();
+      }
+    });
+
+    function showTyping() {
+      if (!activeContext || !currentUser) return;
+      chatTyping.textContent = `${currentUser.name} yazıyor...`;
+      if (typingTimeout) clearTimeout(typingTimeout);
+      typingTimeout = setTimeout(() => {
+        chatTyping.textContent = "";
+      }, 2000);
+    }
+
+    // Image Modal Controls
+    modalClose.addEventListener("click", () => {
+      imageModal.classList.remove("active");
+    });
+
+    imageModal.addEventListener("click", (e) => {
+      if (e.target === imageModal) {
+        imageModal.classList.remove("active");
+      }
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && imageModal.classList.contains("active")) {
+        imageModal.classList.remove("active");
+      }
+    });
+
+    renderEmptyChat();
+  </script>
+</body>
+</html>

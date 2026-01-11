@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Oyuncu Profili - Discord Gaming</title>
+  
+  <!-- Font Awesome -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+    import {
+      getFirestore,
+      collection,
+      doc,
+      getDoc,
+      getDocs,
+      query,
+      where,
+      orderBy,
+      limit
+    } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+
+    
+    const firebaseConfig = {
+      apiKey: "AIzaSyDI0lC7bhuvXu6MHJYTmX9VETyU5fglZS4",
+      authDomain: "deneme-58622.firebaseapp.com",
+      projectId: "deneme-58622",
+      storageBucket: "deneme-58622.firebasestorage.app",
+      messagingSenderId: "842705198192",
+      appId: "1:842705198192:web:b4e9973bda2e391a93a8b5"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    let currentUser = null;
+    let currentTheme = localStorage.getItem('theme') || 'dark';
+
+    // Tema ayarla
+    function setTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      currentTheme = theme;
+      localStorage.setItem('theme', theme);
+      
+      const icon = document.getElementById('themeIcon');
+      if (icon) {
+        icon.className = theme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+      }
+    }
+
+    // Tema toggle
+    window.toggleTheme = function() {
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      setTheme(newTheme);
+    }
+
+    // İsim seçiminde öncelik
+    function preferredName(user){
+      const local = localStorage.getItem('profile:name');
+      if(local && local.trim()) return local.trim();
+      if(user.displayName && user.displayName.trim()) return user.displayName.trim();
+      const providerName = (user.providerData || []).find(p => p?.displayName)?.displayName;
+      if(providerName && providerName.trim()) return providerName.trim();
+      if(user.email) return user.email.split('@')[0];
+      return 'Oyuncu';
+    }
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        currentUser = user;
+        
+        document.getElementById('playerName').textContent = preferredName(user);
+        document.getElementById('playerEmail').textContent = user.email || '';
+        
+        if (user.photoURL) {
+          document.getElementById('playerAvatar').src = user.photoURL;
+        } else {
+          // Avatar yoksa ilk harf
+          const name = preferredName(user);
+          document.getElementById('playerAvatar').style.display = 'none';
+          document.getElementById('avatarLetter').style.display = 'flex';
+          document.getElementById('avatarLetter').textContent = name[0].toUpperCase();
+        }
+
+        // Firebase'den istatistikleri yükle
+        await loadUserStats(user.uid);
+        await loadUserReviews(user.uid);
+        await loadFavoriteGames();
+        await loadRecentGames(user.uid);
+      } else {
+        // Giriş yoksa ana sayfaya yönlendir (orada giriş ekranı var)
+        alert('Profil sayfasını görüntülemek için giriş yapmalısınız!');
+        window.location.href = "index.html";
+      }
+    });
+
+    // Kullanıcı istatistiklerini yükle
+    async function loadUserStats(userId) {
+      try {
+        // Toplam yorum sayısı
+        const reviewsRef = collection(db, 'games');
+        const gamesSnapshot = await getDocs(reviewsRef);
+        
+        let totalReviews = 0;
+        let totalGamesPlayed = 0;
+        let totalRating = 0;
+
+        for (const gameDoc of gamesSnapshot.docs) {
+          const reviewsQuery = query(
+            collection(db, 'games', gameDoc.id, 'reviews'),
+            where('userId', '==', userId)
+          );
+          const userReviews = await getDocs(reviewsQuery);
+          
+          totalReviews += userReviews.size;
+          
+          userReviews.forEach(reviewDoc => {
+            totalRating += reviewDoc.data().rating || 0;
+          });
+        }
+
+        // Favori oyunlar
+        const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+        totalGamesPlayed = favorites.length;
+
+        const avgRating = totalReviews > 0 ? (totalRating / totalReviews).toFixed(1) : 0;
+
+        // İstatistikleri güncelle
+        document.getElementById('totalGames').textContent = totalGamesPlayed;
+        document.getElementById('totalReviews').textContent = totalReviews;
+        document.getElementById('avgRating').textContent = avgRating;
+        document.getElementById('favCount').textContent = favorites.length;
+
+        // Rozet hesapla
+        updateBadges(totalReviews, totalGamesPlayed, avgRating);
+      } catch (error) {
+        console.error('Error loading stats:', error);
+      }
+    }
+
+    // Kullanıcı yorumlarını yükle
+    async function loadUserReviews(userId) {
+      try {
+        const reviewsList = document.getElementById('userReviewsList');
+        reviewsList.innerHTML = '<div class="loading">Yorumlar yükleniyor...</div>';
+
+        const gamesRef = collection(db, 'games');
+        const gamesSnapshot = await getDocs(gamesRef);
+        
+        let allReviews = [];
+
+        for (const gameDoc of gamesSnapshot.docs) {
+          // Index gerektirmeyen sorgu - sadece userId filtresi
+          const reviewsQuery = query(
+            collection(db, 'games', gameDoc.id, 'reviews'),
+            where('userId', '==', userId)
+          );
+          const userReviews = await getDocs(reviewsQuery);
+          
+          userReviews.forEach(reviewDoc => {
+            allReviews.push({
+              id: reviewDoc.id,
+              gameId: gameDoc.id,
+              gameName: gameDoc.data().title,
+              ...reviewDoc.data()
+            });
+          });
+        }
+
+        // Manuel sıralama (timestamp'e göre)
+        allReviews.sort((a, b) => {
+          if (!a.timestamp || !b.timestamp) return 0;
+          return b.timestamp.seconds - a.timestamp.seconds;
+        });
+
+        if (allReviews.length === 0) {
+          reviewsList.innerHTML = '<div class="empty-state">Henüz yorum yapmadınız.</div>';
+          return;
+        }
+
+        reviewsList.innerHTML = '';
+        allReviews.forEach(review => {
+          const reviewEl = document.createElement('div');
+          reviewEl.className = 'review-item';
+          reviewEl.innerHTML = `
+            <div class="review-header">
+              <h4>${review.gameName}</h4>
+              <span class="review-rating">${renderStars(review.rating)}</span>
+            </div>
+            <p class="review-text">${review.comment}</p>
+            <div class="review-footer">
+              <span class="review-date">${formatDate(review.timestamp)}</span>
+              <span class="review-likes"><i class="fas fa-thumbs-up"></i> ${review.likes || 0}</span>
+            </div>
+          `;
+          reviewsList.appendChild(reviewEl);
+        });
+      } catch (error) {
+        console.error('Error loading reviews:', error);
+        document.getElementById('userReviewsList').innerHTML = 
+          '<div class="empty-state">Yorumlar yüklenirken hata oluştu. Lütfen sayfayı yenileyin.</div>';
+      }
+    }
+
+    // Favori oyunları yükle
+    async function loadFavoriteGames() {
+      try {
+        const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+        const favoritesList = document.getElementById('favoriteGamesList');
+        
+        if (favorites.length === 0) {
+          favoritesList.innerHTML = '<div class="empty-state">Henüz favori oyununuz yok.</div>';
+          return;
+        }
+
+        favoritesList.innerHTML = '';
+
+        for (const gameId of favorites.slice(0, 6)) {
+          const gameDoc = await getDoc(doc(db, 'games', gameId));
+          
+          if (gameDoc.exists()) {
+            const game = gameDoc.data();
+            const gameEl = document.createElement('div');
+            gameEl.className = 'favorite-game';
+            gameEl.innerHTML = `
+              <img src="${game.thumbnail}" alt="${game.title}">
+              <div class="game-info">
+                <h4>${game.title}</h4>
+                <div class="game-rating">
+                  <span class="stars">${renderStars(game.averageRating || 0)}</span>
+                  <span class="rating-value">${(game.averageRating || 0).toFixed(1)}</span>
+                </div>
+              </div>
+            `;
+            gameEl.onclick = () => window.location.href = `index.html#${gameId}`;
+            favoritesList.appendChild(gameEl);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading favorites:', error);
+      }
+    }
+
+    // Son oynanan oyunları yükle (placeholder - gerçek veri için activity tracking gerekir)
+    async function loadRecentGames(userId) {
+      const recentList = document.getElementById('recentGamesList');
+      recentList.innerHTML = '<div class="empty-state">Yakında eklenecek...</div>';
+    }
+
+    // Rozetleri güncelle
+    function updateBadges(reviews, games, avgRating) {
+      const badgesContainer = document.getElementById('badgesContainer');
+      badgesContainer.innerHTML = '';
+
+      const badges = [];
+
+      // Yeni Başlayan
+      if (reviews === 0 && games === 0) {
+        badges.push({ icon: '🌟', name: 'Yeni Başlayan', desc: 'İlk adımlar' });
+      }
+
+      // Yorum Ustası
+      if (reviews >= 10) {
+        badges.push({ icon: '💬', name: 'Yorum Ustası', desc: `${reviews} yorum` });
+      }
+
+      // Oyun Aşığı
+      if (games >= 5) {
+        badges.push({ icon: '🎮', name: 'Oyun Aşığı', desc: `${games} favori` });
+      }
+
+      // Eleştirmen
+      if (avgRating >= 4.0) {
+        badges.push({ icon: '⭐', name: 'Eleştirmen', desc: `${avgRating} ort. puan` });
+      }
+
+      // Aktif Oyuncu
+      if (reviews >= 5) {
+        badges.push({ icon: '🔥', name: 'Aktif Oyuncu', desc: 'Aktif kullanıcı' });
+      }
+
+      // Rozetler yoksa
+      if (badges.length === 0) {
+        badges.push({ icon: '🎯', name: 'Başlangıç', desc: 'İlk adımlarını at!' });
+      }
+
+      badges.forEach(badge => {
+        const badgeEl = document.createElement('div');
+        badgeEl.className = 'badge-item';
+        badgeEl.innerHTML = `
+          <div class="badge-icon">${badge.icon}</div>
+          <div class="badge-info">
+            <h4>${badge.name}</h4>
+            <p>${badge.desc}</p>
+          </div>
+        `;
+        badgesContainer.appendChild(badgeEl);
+      });
+    }
+
+    // Yıldızları render et
+    function renderStars(rating) {
+      const fullStars = Math.floor(rating);
+      const halfStar = rating % 1 >= 0.5;
+      let stars = '';
+      
+      for (let i = 0; i < fullStars; i++) {
+        stars += '★';
+      }
+      if (halfStar) stars += '½';
+      
+      const emptyStars = 5 - Math.ceil(rating);
+      for (let i = 0; i < emptyStars; i++) {
+        stars += '☆';
+      }
+      
+      return stars;
+    }
+
+    // Tarihi formatla
+    function formatDate(timestamp) {
+      if (!timestamp) return '';
+      const date = timestamp.toDate();
+      return date.toLocaleDateString('tr-TR', { 
+        day: 'numeric', 
+        month: 'long', 
+        year: 'numeric' 
+      });
+    }
+
+    // Çıkış butonu
+    window.logout = async function() {
+      if (confirm('Çıkış yapmak istediğinize emin misiniz?')) {
+        await signOut(auth);
+        window.location.href = "index.html";
+      }
+    }
+
+    // Anasayfaya dön
+    window.anasayfa = function () {
+      window.location.href = "index.html"; 
+    }
+
+    // Tema başlat
+    setTheme(currentTheme);
+  </script>
+
+  <style>
+    :root {
+      --bg-primary: #36393f;
+      --bg-secondary: #2f3136;
+      --bg-tertiary: #202225;
+      --bg-chat: #40444b;
+      --text-primary: #dcddde;
+      --text-secondary: #b9bbbe;
+      --text-muted: #72767d;
+      --accent: #5865f2;
+      --accent-hover: #4752c4;
+      --success: #3ba55d;
+      --danger: #ed4245;
+      --warning: #faa81a;
+    }
+
+    [data-theme="light"] {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f2f3f5;
+      --bg-tertiary: #e3e5e8;
+      --bg-chat: #ebedef;
+      --text-primary: #2e3338;
+      --text-secondary: #4e5058;
+      --text-muted: #72767d;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body { 
+      background: var(--bg-primary); 
+      color: var(--text-primary); 
+      font-family: 'Whitney', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    /* HEADER */
+    header { 
+      background: linear-gradient(135deg, var(--accent), #7289da); 
+      padding: 3rem 2rem; 
+      text-align: center; 
+      position: relative;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .header-controls {
+      position: absolute;
+      top: 1.5rem;
+      right: 1.5rem;
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .header-btn {
+      background: rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(10px);
+      border: none;
+      color: white;
+      padding: 0.6rem 1.2rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .header-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .profile-header {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .avatar-container {
+      position: relative;
+      display: inline-block;
+      margin-bottom: 1rem;
+    }
+
+    #playerAvatar { 
+      width: 120px; 
+      height: 120px; 
+      border-radius: 50%; 
+      border: 4px solid rgba(255, 255, 255, 0.9);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+
+    #avatarLetter {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: white;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 3rem;
+      font-weight: 700;
+      border: 4px solid rgba(255, 255, 255, 0.9);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+
+    .status-badge {
+      position: absolute;
+      bottom: 5px;
+      right: 5px;
+      width: 30px;
+      height: 30px;
+      background: var(--success);
+      border: 4px solid white;
+      border-radius: 50%;
+    }
+
+    header h1 { 
+      margin: 1rem 0 0.5rem; 
+      font-size: 2.5rem;
+      color: white;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    header p { 
+      margin: 0; 
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 1.1rem;
+      font-weight: 500;
+    }
+
+    /* MAIN CONTENT */
+    main { 
+      max-width: 1200px; 
+      margin: -50px auto 30px; 
+      padding: 0 20px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      padding: 1.5rem;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      transition: all 0.3s;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 24px rgba(88, 101, 242, 0.2);
+    }
+
+    .stat-icon {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 0.25rem;
+    }
+
+    .stat-label {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .content-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (min-width: 768px) {
+      .content-grid {
+        grid-template-columns: 2fr 1fr;
+      }
+    }
+
+    .card {
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+
+    .card h2 {
+      color: var(--text-primary);
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .card h2 i {
+      color: var(--accent);
+    }
+
+    /* BADGES */
+    .badges-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+
+    .badge-item {
+      background: var(--bg-chat);
+      border-radius: 10px;
+      padding: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      transition: all 0.2s;
+    }
+
+    .badge-item:hover {
+      background: var(--bg-tertiary);
+      transform: scale(1.02);
+    }
+
+    .badge-icon {
+      font-size: 2.5rem;
+      width: 60px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-secondary);
+      border-radius: 50%;
+    }
+
+    .badge-info h4 {
+      color: var(--text-primary);
+      font-size: 1rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .badge-info p {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    /* REVIEWS */
+    .review-item {
+      background: var(--bg-chat);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .review-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .review-header h4 {
+      color: var(--text-primary);
+      font-size: 1rem;
+    }
+
+    .review-rating {
+      color: var(--warning);
+      font-size: 0.9rem;
+    }
+
+    .review-text {
+      color: var(--text-secondary);
+      line-height: 1.5;
+      margin-bottom: 0.5rem;
+    }
+
+    .review-footer {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .review-likes {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    /* FAVORITE GAMES */
+    .favorites-grid {
+      display: grid;
+      gap: 1rem;
+    }
+
+    .favorite-game {
+      background: var(--bg-chat);
+      border-radius: 8px;
+      padding: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .favorite-game:hover {
+      background: var(--bg-tertiary);
+      transform: translateX(5px);
+    }
+
+    .favorite-game img {
+      width: 80px;
+      height: 45px;
+      object-fit: cover;
+      border-radius: 6px;
+    }
+
+    .game-info {
+      flex: 1;
+    }
+
+    .game-info h4 {
+      color: var(--text-primary);
+      font-size: 0.95rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .game-rating {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.85rem;
+    }
+
+    .game-rating .stars {
+      color: var(--warning);
+    }
+
+    .rating-value {
+      color: var(--text-muted);
+    }
+
+    /* LOADING & EMPTY STATES */
+    .loading, .empty-state {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+    }
+
+    /* CHAT IFRAME */
+    .chat-container {
+      background: var(--bg-chat);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 1rem;
+    }
+
+    .chat-container iframe {
+      width: 100%;
+      height: 600px;
+      border: none;
+    }
+
+    /* FOOTER */
+    footer {
+      text-align: center;
+      color: var(--text-muted);
+      padding: 2rem;
+      margin-top: 3rem;
+      border-top: 1px solid var(--bg-tertiary);
+    }
+
+    /* RESPONSIVE */
+    @media (max-width: 768px) {
+      header {
+        padding: 2rem 1rem;
+      }
+
+      .header-controls {
+        position: static;
+        justify-content: center;
+        margin-bottom: 1rem;
+      }
+
+      header h1 {
+        font-size: 1.8rem;
+      }
+
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      main {
+        margin-top: -30px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-controls">
+      <button class="header-btn" onclick="toggleTheme()">
+        <i id="themeIcon" class="fas fa-moon"></i>
+      </button>
+      <button class="header-btn" onclick="anasayfa()">
+        <i class="fas fa-home"></i>
+        Anasayfa
+      </button>
+      <button class="header-btn" onclick="logout()">
+        <i class="fas fa-sign-out-alt"></i>
+        Çıkış
+      </button>
+    </div>
+
+    <div class="profile-header">
+      <div class="avatar-container">
+        <img id="playerAvatar" src="https://via.placeholder.com/120" alt="Profil resmi">
+        <div id="avatarLetter"></div>
+        <div class="status-badge" title="Çevrimiçi"></div>
+      </div>
+      <h1 id="playerName">Yükleniyor...</h1>
+      <p id="playerEmail"></p>
+    </div>
+  </header>
+
+  <main>
+    <!-- İSTATİSTİKLER -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">🎮</div>
+        <div class="stat-value" id="totalGames">0</div>
+        <div class="stat-label">Favori Oyun</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">💬</div>
+        <div class="stat-value" id="totalReviews">0</div>
+        <div class="stat-label">Yorum</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">⭐</div>
+        <div class="stat-value" id="avgRating">0</div>
+        <div class="stat-label">Ortalama Puan</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">❤️</div>
+        <div class="stat-value" id="favCount">0</div>
+        <div class="stat-label">Favoriler</div>
+      </div>
+    </div>
+
+    <!-- İÇERİK -->
+    <div class="content-grid">
+      <!-- SOL KOLON -->
+      <div>
+        <!-- ROZETLER -->
+        <div class="card">
+          <h2><i class="fas fa-trophy"></i> Başarılar & Rozetler</h2>
+          <div class="badges-grid" id="badgesContainer">
+            <div class="loading">Rozetler yükleniyor...</div>
+          </div>
+        </div>
+
+        <!-- YORUMLAR -->
+        <div class="card" style="margin-top: 1.5rem;">
+          <h2><i class="fas fa-comments"></i> Yorumlarım</h2>
+          <div id="userReviewsList">
+            <div class="loading">Yorumlar yükleniyor...</div>
+          </div>
+        </div>
+
+        <!-- SOHBET -->
+        <div class="card" style="margin-top: 1.5rem;">
+          <h2><i class="fas fa-message"></i> Sohbet</h2>
+          <div class="chat-container">
+            <iframe 
+              src="chat2.html"
+              allow="clipboard-read; clipboard-write">
+            </iframe>
+          </div>
+        </div>
+      </div>
+
+      <!-- SAĞ KOLON -->
+      <div>
+        <!-- FAVORİ OYUNLAR -->
+        <div class="card">
+          <h2><i class="fas fa-heart"></i> Favori Oyunlar</h2>
+          <div class="favorites-grid" id="favoriteGamesList">
+            <div class="loading">Yükleniyor...</div>
+          </div>
+        </div>
+
+        <!-- SON OYNANAN -->
+        <div class="card" style="margin-top: 1.5rem;">
+          <h2><i class="fas fa-clock"></i> Son Oynanlar</h2>
+          <div id="recentGamesList">
+            <div class="loading">Yükleniyor...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    © 2025 Oyun Alanı • Tüm Hakları Saklıdır
+  </footer>
+</body>
+</html>
