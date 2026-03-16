@@ -754,6 +754,16 @@
       .sidebar {
         margin-bottom: 2rem;
       }
+      document.addEventListener('DOMContentLoaded', function() {
+    const playButton = document.getElementById('play-button');
+    if(playButton) {
+        playButton.addEventListener('click', function() {
+            console.log('Oyun başlatıldı!');
+        });
+    } else {
+        console.error('Element bulunamadı!');
+    }
+});
 
       .filters-container {
         overflow-x: auto;
@@ -768,7 +778,11 @@
         margin: 1rem auto;
       }
     }
+<!-- HTML -->
+<div id="play-button">Oyna</div>
 
+<!-- JS kodunu buraya koy -->
+<script src="script.js"></script>
     /* LOGIN SCREEN */
     #loginScreen {
       position: fixed;
